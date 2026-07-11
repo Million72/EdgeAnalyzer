@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OTC Predictor — Live Signals</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #333;
+    padding: 20px;
+    min-height: 100vh;
+  }
+
+  .container { max-width: 1400px; margin: 0 auto; }
+
+  h1 {
+    text-align: center;
+    color: white;
+    margin-bottom: 6px;
+    font-size: 2.4em;
+    text-shadow: 3px 3px 6px rgba(0,0,0,0.4);
+    letter-spacing: -1px;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 24px;
+    font-size: 1.05em;
+    font-weight: 500;
+  }
+
+  /* Timeframe selector */
+  .tf-selector {
+    background: white;
+    padding: 18px;
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    margin-bottom: 22px;
+    text-align: center;
+  }
+  .tf-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .tf-btn {
+    padding: 10px 22px; border: 2px solid #667eea; background: white;
+    border-radius: 10px; font-size: 1em; font-weight: bold; cursor: pointer;
+    color: #667eea; transition: all 0.2s ease;
+  }
+  .tf-btn.active { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+  .tf-btn:hover { transform: translateY(-2px); }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex; gap: 14px; margin-bottom: 22px; flex-wrap: wrap;
+  }
+  .stat-box {
+    flex: 1; min-width: 120px; background: white; border-radius: 12px;
+    padding: 14px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  .stat-box .num { font-size: 1.8em; font-weight: 800; }
+  .stat-box .lbl { font-size: 0.8em; color: #64748b; font-weight: 600; letter-spacing: 0.5px; }
+  .c-total { color: #667eea; } .c-buy { color: #10b981; } .c-sell { color: #ef4444; } .c-wait { color: #f59e0b; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab-btn {
+    flex: 1; padding: 12px; background: rgba(255,255,255,0.85); border: none;
+    border-radius: 10px; font-weight: 700; cursor: pointer; color: #667eea; font-size: 1em;
+  }
+  .tab-btn.active { background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+  /* Best Opportunities panel */
+  .best-panel {
+    background: white; padding: 26px; border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 26px;
+    border: 3px solid #10b981; position: relative; overflow: hidden;
+  }
+  .best-panel::before {
+    content: ''; position: absolute; top: -2px; left: -2px; right: -2px; height: 5px;
+    background: linear-gradient(90deg, #10b981, #3b82f6, #f59e0b, #10b981);
+    background-size: 200% 100%; animation: shimmer 3s linear infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 0% 0%; } 100% { background-position: 200% 0%; } }
+
+  .best-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; padding-bottom: 16px; border-bottom: 3px solid #f0f0f0; flex-wrap: wrap; gap: 10px;
+  }
+  .best-title { font-size: 1.7em; font-weight: 800; color: #10b981; }
+  .best-meta { font-size: 0.9em; color: #64748b; }
+
+  .opps-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
+  }
+
+  .opp-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    padding: 22px; border-radius: 15px; border-left: 6px solid #10b981;
+    position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .opp-card.rank-1 { border-left-color: #fbbf24; background: linear-gradient(135deg, #fffbeb, #fef3c7); }
+  .opp-card.rank-2 { border-left-color: #94a3b8; background: linear-gradient(135deg, #f8fafc, #f1f5f9); }
+  .opp-card.rank-3 { border-left-color: #f97316; background: linear-gradient(135deg, #fff7ed, #ffedd5); }
+
+  .opp-rank {
+    position: absolute; top: 14px; right: 14px; width: 36px; height: 36px;
+    background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-weight: 800;
+  }
+  .opp-rank.rank-1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; }
+  .opp-rank.rank-2 { background: linear-gradient(135deg, #cbd5e1, #94a3b8); color: #000; }
+  .opp-rank.rank-3 { background: linear-gradient(135deg, #f97316, #ea580c); }
+
+  .opp-symbol { font-size: 1.3em; font-weight: 800; color: #1e293b; margin-bottom: 8px; }
+  .opp-direction { font-size: 1.9em; font-weight: 800; margin: 8px 0; }
+  .dir-buy { color: #10b981; } .dir-sell { color: #ef4444; }
+
+  .opp-price { font-family: monospace; font-size: 1.1em; color: #475569; margin-bottom: 10px; }
+
+  .opp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .opp-stat { text-align: center; padding: 8px; background: rgba(255,255,255,0.8); border-radius: 8px; }
+  .opp-stat .lbl { font-size: 0.75em; color: #64748b; font-weight: 700; }
+  .opp-stat .val { font-size: 1.15em; font-weight: 800; color: #1e293b; }
+
+  .conf-bar-bg { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin-top: 12px; }
+  .conf-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+  .fill-buy { background: linear-gradient(90deg, #10b981, #059669); }
+  .fill-sell { background: linear-gradient(90deg, #ef4444, #dc2626); }
+
+  .htf-pills { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .pill { font-size: 0.72em; padding: 3px 8px; border-radius: 10px; font-weight: 700; }
+  .pill-bull { background: #d1fae5; color: #059669; }
+  .pill-bear { background: #fee2e2; color: #dc2626; }
+  .pill-neutral { background: #f1f5f9; color: #64748b; }
+
+  .no-opps { text-align: center; padding: 40px; color: #64748b; }
+  .no-opps .emoji { font-size: 3.5em; margin-bottom: 14px; }
+
+  /* Full market grid */
+  .market-panel {
+    background: white; padding: 26px; border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 26px;
+  }
+  .market-panel-title { font-size: 1.4em; font-weight: 800; color: #3b82f6; margin-bottom: 18px; }
+
+  .market-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px;
+  }
+
+  .m-cell {
+    background: linear-gradient(135deg, #ffffff, #f8f9fa); padding: 16px; border-radius: 12px;
+    border-left: 5px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .m-cell.buy { border-left-color: #10b981; background: linear-gradient(135deg, #ecfdf5, #d1fae5); }
+  .m-cell.sell { border-left-color: #ef4444; background: linear-gradient(135deg, #fef2f2, #fee2e2); }
+  .m-cell.err { border-left-color: #94a3b8; opacity: 0.7; }
+
+  .m-name { font-weight: 800; color: #1e293b; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .m-price { font-family: monospace; font-size: 1.05em; }
+  .m-badge { font-size: 0.7em; padding: 2px 8px; border-radius: 10px; font-weight: 700; color: white; }
+  .badge-buy { background: #10b981; } .badge-sell { background: #ef4444; } .badge-wait { background: #f59e0b; }
+
+  .m-sub { font-size: 0.78em; color: #64748b; margin-top: 4px; }
+
+  .footer-note {
+    text-align: center; color: rgba(255,255,255,0.85); font-size: 0.85em; margin-top: 20px;
+  }
+
+  .loading { text-align: center; color: white; padding: 40px; font-size: 1.2em; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>◈ OTC Predictor</h1>
+  <div class="subtitle">Live forex &amp; synthetic signals · 3-timeframe confirmed · Deriv WebSocket</div>
+
+  <div class="tf-selector">
+    <div class="tf-buttons" id="tfButtons"></div>
+  </div>
+
+  <div class="stats-bar" id="statsBar"></div>
+
+  <div class="best-panel">
+    <div class="best-header">
+      <div class="best-title">🎯 Top Opportunities</div>
+      <div class="best-meta" id="bestMeta">—</div>
+    </div>
+    <div id="oppsContainer"><div class="loading">Loading…</div></div>
+  </div>
+
+  <div class="market-panel">
+    <div class="market-panel-title">All Markets</div>
+    <div class="tabs">
+      <button class="tab-btn active" data-type="all" onclick="setTypeFilter('all')">All</button>
+      <button class="tab-btn" data-type="forex" onclick="setTypeFilter('forex')">Forex</button>
+      <button class="tab-btn" data-type="synthetic" onclick="setTypeFilter('synthetic')">Synthetic</button>
+    </div>
+    <div class="market-grid" id="marketGrid"><div class="loading">Loading…</div></div>
+  </div>
+
+  <div class="footer-note">Educational only · Trading involves risk · Signals require 3-timeframe agreement + RSI/confirmation gating</div>
+</div>
+
+<script>
+const TIMEFRAMES = ["1m","5m","15m","30m","1h","4h"];
+let currentTf = "1h";
+let currentType = "all";
+let allSignals = [];
+
+function renderTfButtons() {
+  const el = document.getElementById('tfButtons');
+  el.innerHTML = TIMEFRAMES.map(tf =>
+    `<button class="tf-btn ${tf === currentTf ? 'active' : ''}" onclick="setTf('${tf}')">${tf}</button>`
+  ).join('');
+}
+
+function setTf(tf) {
+  currentTf = tf;
+  renderTfButtons();
+  loadSignals();
+}
+
+function setTypeFilter(type) {
+  currentType = type;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+  renderMarketGrid();
+}
+
+async function loadSignals() {
+  try {
+    const res = await fetch(`/api/signals?tf=${currentTf}`);
+    const data = await res.json();
+    allSignals = data.signals || [];
+    renderStats();
+    renderOpportunities();
+    renderMarketGrid();
+  } catch (e) {
+    console.error('Failed to load signals', e);
+  }
+}
+
+function renderStats() {
+  const valid = allSignals.filter(s => !s.error);
+  const buys = valid.filter(s => s.signal === 'BUY').length;
+  const sells = valid.filter(s => s.signal === 'SELL').length;
+  const waits = valid.filter(s => s.signal === 'WAIT').length;
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat-box"><div class="num c-total">${valid.length}</div><div class="lbl">LIVE</div></div>
+    <div class="stat-box"><div class="num c-buy">${buys}</div><div class="lbl">BUY</div></div>
+    <div class="stat-box"><div class="num c-sell">${sells}</div><div class="lbl">SELL</div></div>
+    <div class="stat-box"><div class="num c-wait">${waits}</div><div class="lbl">WAIT</div></div>
+  `;
+}
+
+function renderOpportunities() {
+  const container = document.getElementById('oppsContainer');
+  const meta = document.getElementById('bestMeta');
+
+  // Only real, validated BUY/SELL signals — server already applied all quality gates
+  const actionable = allSignals
+    .filter(s => !s.error && (s.signal === 'BUY' || s.signal === 'SELL'))
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 6);
+
+  meta.textContent = `${actionable.length} of ${allSignals.length} markets · ${currentTf}`;
+
+  if (actionable.length === 0) {
+    container.innerHTML = `
+      <div class="no-opps">
+        <div class="emoji">💤</div>
+        <div style="font-weight:700;">No validated signals right now</div>
+        <div style="margin-top:8px; font-size:0.9em; color:#94a3b8;">
+          All markets are WAIT — 3-timeframe agreement, RSI, and confirmation candle gates not yet satisfied
+        </div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="opps-grid">${actionable.map((s, i) => {
+    const rank = i + 1;
+    const isBuy = s.signal === 'BUY';
+    const dirClass = isBuy ? 'dir-buy' : 'dir-sell';
+    const fillClass = isBuy ? 'fill-buy' : 'fill-sell';
+    const rankClass = rank <= 3 ? `rank-${rank}` : '';
+    const htf1 = pill(s.htf1Bias);
+    const htf2 = pill(s.htf2Bias);
+
+    return `
+      <div class="opp-card ${rankClass}">
+        <div class="opp-rank ${rankClass}">#${rank}</div>
+        <div class="opp-symbol">${s.symbol}</div>
+        <div class="opp-price">${s.price}</div>
+        <div class="opp-direction ${dirClass}">${isBuy ? '▲ BUY' : '▼ SELL'}</div>
+        <div class="htf-pills">${htf1}${htf2}</div>
+        <div class="opp-stats">
+          <div class="opp-stat"><div class="lbl">Confidence</div><div class="val">${s.confidence}%</div></div>
+          <div class="opp-stat"><div class="lbl">R:R</div><div class="val">${s.rr ?? '—'}</div></div>
+          <div class="opp-stat"><div class="lbl">TP1</div><div class="val">${s.tp1 ?? '—'}</div></div>
+          <div class="opp-stat"><div class="lbl">SL</div><div class="val">${s.sl ?? '—'}</div></div>
+        </div>
+        <div class="conf-bar-bg"><div class="conf-bar-fill ${fillClass}" style="width:${s.confidence}%"></div></div>
+      </div>
+    `;
+  }).join('')}</div>`;
+}
+
+function pill(bias) {
+  if (bias === 'BULL' || bias === 'BULLISH') return `<span class="pill pill-bull">${bias}</span>`;
+  if (bias === 'BEAR' || bias === 'BEARISH') return `<span class="pill pill-bear">${bias}</span>`;
+  return `<span class="pill pill-neutral">${bias || 'NEUTRAL'}</span>`;
+}
+
+function renderMarketGrid() {
+  const grid = document.getElementById('marketGrid');
+  let list = allSignals;
+  if (currentType !== 'all') list = list.filter(s => s.type === currentType);
+
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="loading" style="color:#64748b;">No markets</div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(s => {
+    if (s.error) {
+      return `
+        <div class="m-cell err">
+          <div class="m-name">${s.symbol}<span class="m-badge" style="background:#94a3b8;">ERR</span></div>
+          <div class="m-sub">${s.error}</div>
+        </div>`;
+    }
+    const cls = s.signal === 'BUY' ? 'buy' : s.signal === 'SELL' ? 'sell' : '';
+    const badgeCls = s.signal === 'BUY' ? 'badge-buy' : s.signal === 'SELL' ? 'badge-sell' : 'badge-wait';
+    return `
+      <div class="m-cell ${cls}">
+        <div class="m-name">
+          <span>${s.symbol}</span>
+          <span class="m-badge ${badgeCls}">${s.signal}</span>
+        </div>
+        <div class="m-price">${s.price}</div>
+        <div class="m-sub">${s.confidence}% conf · RSI ${s.rsi} · ${s.trend}</div>
+        ${s.blockReason ? `<div class="m-sub" style="color:#94a3b8;">${s.blockReason}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+renderTfButtons();
+loadSignals();
+setInterval(loadSignals, 20000);
+</script>
+</body>
+</html>
