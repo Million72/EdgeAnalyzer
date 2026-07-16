@@ -1,0 +1,4 @@
+otc-predictor
+*.exe
+*.log
+.env
