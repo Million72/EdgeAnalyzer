@@ -1,0 +1,50 @@
+server:
+  port: 8080
+
+deriv:
+  app_id: "1089"
+  ws_url: "wss://ws.binaryws.com/websockets/v3"
+
+markets:
+  forex:
+    - { symbol: "XAUUSD", deriv: "frxXAUUSD", is_jpy: false, is_gold: true }
+    - { symbol: "EURUSD", deriv: "frxEURUSD", is_jpy: false, is_gold: false }
+    - { symbol: "GBPUSD", deriv: "frxGBPUSD", is_jpy: false, is_gold: false }
+    - { symbol: "USDJPY", deriv: "frxUSDJPY", is_jpy: true,  is_gold: false }
+    - { symbol: "AUDUSD", deriv: "frxAUDUSD", is_jpy: false, is_gold: false }
+    - { symbol: "USDCAD", deriv: "frxUSDCAD", is_jpy: false, is_gold: false }
+    - { symbol: "USDCHF", deriv: "frxUSDCHF", is_jpy: false, is_gold: false }
+    - { symbol: "EURJPY", deriv: "frxEURJPY", is_jpy: true,  is_gold: false }
+    - { symbol: "GBPJPY", deriv: "frxGBPJPY", is_jpy: true,  is_gold: false }
+    - { symbol: "EURGBP", deriv: "frxEURGBP", is_jpy: false, is_gold: false }
+  synthetic:
+    - { symbol: "Volatility 10",  deriv: "R_10" }
+    - { symbol: "Volatility 25",  deriv: "R_25" }
+    - { symbol: "Volatility 50",  deriv: "R_50" }
+    - { symbol: "Volatility 75",  deriv: "R_75" }
+    - { symbol: "Volatility 100", deriv: "R_100" }
+    - { symbol: "1HZ10V",         deriv: "1HZ10V" }
+    - { symbol: "Step Index",     deriv: "stpRNG" }
+    - { symbol: "Jump 10",        deriv: "JD10" }
+    - { symbol: "Boom 300",       deriv: "BOOM300N" }
+    - { symbol: "Boom 500",       deriv: "BOOM500" }
+    - { symbol: "Crash 300",      deriv: "CRASH300N" }
+    - { symbol: "Crash 500",      deriv: "CRASH500" }
+
+timeframes:
+  "1m":  { granularity: 60,    htf_gran: 300,   htf2_gran: 900 }
+  "5m":  { granularity: 300,   htf_gran: 900,   htf2_gran: 3600 }
+  "15m": { granularity: 900,   htf_gran: 1800,  htf2_gran: 3600 }
+  "30m": { granularity: 1800,  htf_gran: 3600,  htf2_gran: 14400 }
+  "1h":  { granularity: 3600,  htf_gran: 14400, htf2_gran: 86400 }
+  "4h":  { granularity: 14400, htf_gran: 86400, htf2_gran: 604800 }
+
+scan_interval_seconds: 300
+candle_count: 300
+htf_candle_count: 100
+
+signal_rules:
+  min_score: 10
+  min_margin: 4
+  rsi_overbought: 70
+  rsi_oversold: 30
