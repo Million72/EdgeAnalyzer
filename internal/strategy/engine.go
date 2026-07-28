@@ -27,9 +27,10 @@ type EngineResult struct {
 	Price         float64
 	ADXValue      float64
 	VolatilityOK  bool // true when ATR is healthy relative to recent range — false means dead/illiquid conditions
+	EntryModels   []EntryModelMatch
 }
 
-const MaxScore = 34.0 // raised from 30 to account for ADX strength bonus (+2 bull/bear) and volatility penalty headroom
+const MaxScore = 38.0 // 34 (ADX/volatility headroom) + 4 more for entry-model weight headroom (models score 2-4 pts each)
 
 func biasFromCandles(candles []types.Candle) string {
 	if len(candles) < 50 {
@@ -71,7 +72,10 @@ func isVolatilityHealthy(candles []types.Candle, atr *float64) bool {
 }
 
 // RunEngine executes the full decision flow for a market and returns the scored result.
-func RunEngine(market types.Market, candles, htf1, htf2 []types.Candle) EngineResult {
+// partnerCandles is only ever non-nil for forex symbols with a defined SMT
+// partner (currently EURUSD/GBPUSD) — every other market gets nil and SMT
+// (and entry models 3/4, which require SMT) simply don't apply to it.
+func RunEngine(market types.Market, candles, htf1, htf2, partnerCandles []types.Candle) EngineResult {
 	closes := closesOf(candles)
 	price := closes[len(closes)-1]
 
@@ -104,6 +108,26 @@ func RunEngine(market types.Market, candles, htf1, htf2 []types.Candle) EngineRe
 	adx := indicators.ADX(candles, 14)
 	st := indicators.Supertrend(candles, 10, 3)
 	volOK := isVolatilityHealthy(candles, atr)
+
+	// htf2Bias (the true HIGHEST timeframe) is computed here, ahead of entry
+	// model scanning, since entry models are gated by it (HTF sets bias
+	// only — entry models are only scanned for the matching side; see
+	// entryModels.go's cascade documentation).
+	htf2Bias := biasFromCandles(htf2)
+
+	// MSS — same underlying detector as CHoCH, aliased per ICT terminology.
+	mss := DetectMSS(candles, structure)
+
+	// SMT Divergence — only meaningful when a correlated partner's candles
+	// were actually supplied.
+	var smt *SMTResult
+	if partnerCandles != nil {
+		smt = DetectSMTDivergence(candles, partnerCandles)
+	}
+
+	// Entry Models — scanned on THIS (LTF/selected) timeframe's candles
+	// only, gated by htf2Bias. See entryModels.go for full cascade docs.
+	entryModelMatches := CheckEntryModels(candles, sweep, mss, smt, structure, htf2Bias)
 
 	factors := []Factor{}
 	bull, bear := 0.0, 0.0
@@ -212,6 +236,13 @@ func RunEngine(market types.Market, candles, htf1, htf2 []types.Candle) EngineRe
 		add("Sweep+BOS Confluence", "Liquidity sweep confirmed by BOS in same direction", sweep.Side, 2)
 	}
 
+	// Entry Models — weight scaled per model's own rigor (2-4 based on
+	// component count), matching the same scoring approach used in MT5
+	// Signal Pro 2's JS engines for consistency between the two systems.
+	for _, m := range entryModelMatches {
+		add("Entry Model", m.Label, m.Side, m.Weight)
+	}
+
 	// Candlestick patterns
 	for _, p := range pa {
 		add("Candlestick", p.Name, p.Side, p.Strength)
@@ -277,7 +308,6 @@ func RunEngine(market types.Market, candles, htf1, htf2 []types.Candle) EngineRe
 	}
 
 	htf1Bias := biasFromCandles(htf1)
-	htf2Bias := biasFromCandles(htf2)
 	if htf1Bias == "BULL" {
 		add("HTF1", "HTF1 bullish", "bull", 2)
 	} else if htf1Bias == "BEAR" {
@@ -299,6 +329,7 @@ func RunEngine(market types.Market, candles, htf1, htf2 []types.Candle) EngineRe
 		Price:        price,
 		ADXValue:     adx.ADX,
 		VolatilityOK: volOK,
+		EntryModels:  entryModelMatches,
 	}
 }
 
