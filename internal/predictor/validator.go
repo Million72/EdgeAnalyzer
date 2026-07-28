@@ -60,7 +60,30 @@ func ValidateSignal(result strategy.EngineResult) ValidationResult {
 		return ValidationResult{Valid: false, Side: side, Reason: "MTF disagreement"}
 	}
 
-	// ── Confidence floor — the actual fix ─────────────────────────
+	// ── Entry Model gate — REQUIRED, not a bonus ────────────────────
+	// A signal may not fire unless at least one of the 11 named entry-model
+	// combos is actually present on the SAME side as the dominant direction.
+	// General indicator agreement (EMA/RSI/MACD/structure) can independently
+	// clear the score/margin/confidence checks — that used to be enough to
+	// fire a signal with zero entry models matched, which defeats the
+	// purpose of having named entry models at all. This mirrors the exact
+	// fix applied to MT5 Signal Pro 2's JS validator.
+	matchingModel := false
+	for _, m := range result.EntryModels {
+		if m.Side == side {
+			matchingModel = true
+			break
+		}
+	}
+	if !matchingModel {
+		return ValidationResult{
+			Valid:  false,
+			Side:   side,
+			Reason: "No entry model present — general confluence alone is not sufficient to fire a signal",
+		}
+	}
+
+	// ── Confidence floor ─────────────────────────────────────────────
 	score := result.BearScore
 	if side == "bull" {
 		score = result.BullScore
