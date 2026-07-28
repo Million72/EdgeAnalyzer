@@ -9,6 +9,7 @@ import (
 	"otc-predictor/internal/predictor"
 	"otc-predictor/internal/spike"
 	"otc-predictor/internal/storage"
+	"otc-predictor/internal/strategy"
 	"otc-predictor/pkg/types"
 )
 
@@ -118,6 +119,26 @@ func (s *Scanner) scanMarket(market types.Market, tfName string, tfCfg types.Tim
 		htf2 = nil
 	}
 
-	sig := predictor.BuildSignal(market, tfName, candles, htf1, htf2)
+	// SMT Divergence needs a second, correlated instrument's candles. Only
+	// EURUSD/GBPUSD currently have a defined partner (see strategy/smt.go) —
+	// every other market gets partnerCandles = nil and entry models 3/4
+	// simply don't apply to it. Reuses the same cached/retried fetch path.
+	var partnerCandles []types.Candle
+	partnerSymbol := strategy.GetSMTPartner(market.Symbol)
+	if partnerSymbol != "" {
+		for _, m := range s.cfg.AllMarkets() {
+			if m.Symbol == partnerSymbol {
+				pc, perr := s.fetchCandles(m.Deriv, tfCfg.Granularity, s.cfg.CandleCount)
+				if perr == nil {
+					partnerCandles = pc
+				} else {
+					log.Printf("scanner: %s/%s SMT partner fetch error: %v", market.Symbol, tfName, perr)
+				}
+				break
+			}
+		}
+	}
+
+	sig := predictor.BuildSignal(market, tfName, candles, htf1, htf2, partnerCandles)
 	s.store.SetSignal(sig)
 }
