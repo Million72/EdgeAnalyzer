@@ -8,7 +8,9 @@ import (
 )
 
 // BuildSignal runs the engine, validates it, and returns the final Signal for storage/API.
-func BuildSignal(market types.Market, tf string, candles, htf1, htf2 []types.Candle) types.Signal {
+// partnerCandles is only ever non-nil for forex symbols with a defined SMT
+// partner (currently EURUSD/GBPUSD) — every other market gets nil.
+func BuildSignal(market types.Market, tf string, candles, htf1, htf2, partnerCandles []types.Candle) types.Signal {
 	if len(candles) < 20 {
 		return types.Signal{
 			Symbol: market.Symbol, Type: market.Type, Timeframe: tf,
@@ -16,7 +18,7 @@ func BuildSignal(market types.Market, tf string, candles, htf1, htf2 []types.Can
 		}
 	}
 
-	result := strategy.RunEngine(market, candles, htf1, htf2)
+	result := strategy.RunEngine(market, candles, htf1, htf2, partnerCandles)
 	validation := ValidateSignal(result)
 
 	dec := 5
@@ -53,6 +55,15 @@ func BuildSignal(market types.Market, tf string, candles, htf1, htf2 []types.Can
 	for _, f := range result.Factors {
 		sig.Factors = append(sig.Factors, types.Factor{
 			Step: f.Step, Label: f.Label, Side: f.Side, Weight: f.Weight,
+		})
+	}
+
+	// Map entry models — surfaced regardless of validation outcome, so the
+	// API/dashboard can show what WAS detected even when a signal is
+	// ultimately blocked for some other reason (e.g. confidence floor).
+	for _, m := range result.EntryModels {
+		sig.EntryModels = append(sig.EntryModels, types.EntryModel{
+			Model: m.Model, Side: m.Side, Weight: m.Weight, Label: m.Label,
 		})
 	}
 
