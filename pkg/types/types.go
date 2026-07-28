@@ -36,6 +36,15 @@ type Factor struct {
 }
 
 // Signal is the final output for a market+timeframe
+// EntryModel represents one matched ICT/SMC entry-model combo (see
+// internal/strategy/entryModels.go for the full list and detection logic).
+type EntryModel struct {
+	Model  int     `json:"model"`
+	Side   string  `json:"side"`
+	Weight float64 `json:"weight"`
+	Label  string  `json:"label"`
+}
+
 type Signal struct {
 	Symbol      string    `json:"symbol"`
 	Type        string    `json:"type"` // "forex" | "synthetic"
@@ -61,6 +70,7 @@ type Signal struct {
 	CounterTrend bool     `json:"counterTrend"`
 	BlockReason string    `json:"blockReason,omitempty"`
 	Factors     []Factor  `json:"factors"`
+	EntryModels []EntryModel `json:"entryModels,omitempty"`
 	Timestamp   time.Time `json:"timestamp"`
 	Error       string    `json:"error,omitempty"`
 }
