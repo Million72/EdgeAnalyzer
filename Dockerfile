@@ -3,12 +3,11 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Copy go.mod first (no go.sum in this repo) and resolve/lock dependencies
-COPY go.mod ./
-RUN go mod tidy
-
-# Copy the rest of the source
+# Copy the full source first so go mod tidy can see all imports
 COPY . .
+
+# No go.sum in this repo — resolve/lock dependencies now that source is present
+RUN go mod tidy
 
 # Build a static binary
 RUN CGO_ENABLED=0 GOOS=linux go build -o edgeanalyzer ./cmd
