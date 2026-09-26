@@ -3,7 +3,7 @@ server:
 
 deriv:
   app_id: "1089"
-  ws_url: "wss://ws.binaryws.com/websockets/v3"
+  ws_url: "wss://ws.derivws.com/websockets/v3"
 
 markets:
   forex:
