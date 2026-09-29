@@ -14,6 +14,7 @@ func NewRouter(h *Handlers) *http.ServeMux {
 	mux.HandleFunc("/api/reliability", h.GetReliability)
 	mux.HandleFunc("/api/live-prices", h.GetLivePrices)
 	mux.HandleFunc("/api/markets", h.GetMarkets)
+	mux.HandleFunc("/api/debug/symbols", h.DebugSymbols)
 
 	// Serve dashboard
 	mux.Handle("/", http.FileServer(http.Dir("./web")))
