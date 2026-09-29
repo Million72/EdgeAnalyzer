@@ -2,8 +2,13 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gorilla/websocket"
 
 	"otc-predictor/internal/storage"
 	"otc-predictor/internal/streamer"
@@ -116,4 +121,84 @@ func (h *Handlers) GetLivePrices(w http.ResponseWriter, r *http.Request) {
 // GET /health
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "ok"})
+}
+
+// GET /api/debug/symbols?q=volatility
+// One-off diagnostic: asks Deriv for its live active_symbols list so real
+// symbol codes can be confirmed instead of guessed. Requires ?q= (case
+// insensitive substring match against the symbol code or display name) to
+// avoid dumping hundreds of entries at once.
+func (h *Handlers) DebugSymbols(w http.ResponseWriter, r *http.Request) {
+	q := strings.ToLower(r.URL.Query().Get("q"))
+	if q == "" {
+		http.Error(w, "pass ?q=<search text>, e.g. /api/debug/symbols?q=volatility", http.StatusBadRequest)
+		return
+	}
+
+	url := h.cfg.Deriv.WSURL
+	if h.cfg.Deriv.AppID != "" {
+		url = fmt.Sprintf("%s?app_id=%s", h.cfg.Deriv.WSURL, h.cfg.Deriv.AppID)
+	}
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("dial error: %v", err), http.StatusBadGateway)
+		return
+	}
+	defer conn.Close()
+	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+
+	if err := conn.WriteJSON(map[string]interface{}{"active_symbols": "brief"}); err != nil {
+		http.Error(w, fmt.Sprintf("write error: %v", err), http.StatusBadGateway)
+		return
+	}
+
+	// Field names differ between Deriv's legacy and new API, so accept both.
+	var resp struct {
+		ActiveSymbols []struct {
+			Symbol               string `json:"symbol"`
+			UnderlyingSymbol     string `json:"underlying_symbol"`
+			DisplayName          string `json:"display_name"`
+			UnderlyingSymbolName string `json:"underlying_symbol_name"`
+			Market               string `json:"market"`
+			Submarket            string `json:"submarket"`
+		} `json:"active_symbols"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := conn.ReadJSON(&resp); err != nil {
+		http.Error(w, fmt.Sprintf("read error: %v", err), http.StatusBadGateway)
+		return
+	}
+	if resp.Error != nil {
+		http.Error(w, fmt.Sprintf("deriv error: %s", resp.Error.Message), http.StatusBadGateway)
+		return
+	}
+
+	type match struct {
+		Code      string `json:"code"`
+		Name      string `json:"name"`
+		Market    string `json:"market"`
+		Submarket string `json:"submarket"`
+	}
+	matches := []match{}
+	for _, s := range resp.ActiveSymbols {
+		code := s.Symbol
+		if code == "" {
+			code = s.UnderlyingSymbol
+		}
+		name := s.DisplayName
+		if name == "" {
+			name = s.UnderlyingSymbolName
+		}
+		if strings.Contains(strings.ToLower(code), q) || strings.Contains(strings.ToLower(name), q) {
+			matches = append(matches, match{Code: code, Name: name, Market: s.Market, Submarket: s.Submarket})
+		}
+	}
+
+	writeJSON(w, map[string]interface{}{
+		"query":   q,
+		"count":   len(matches),
+		"matches": matches,
+	})
 }
