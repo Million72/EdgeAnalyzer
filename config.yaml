@@ -2,8 +2,8 @@ server:
   port: 8080
 
 deriv:
-  app_id: "1089"
-  ws_url: "wss://ws.derivws.com/websockets/v3"
+  app_id: ""   # not needed for the new public endpoint
+  ws_url: "wss://api.derivws.com/trading/v1/options/ws/public"
 
 markets:
   forex:
