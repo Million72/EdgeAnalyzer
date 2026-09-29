@@ -84,7 +84,10 @@ func (d *DerivStreamer) runBatch(idx int, batch []types.Market) {
 }
 
 func (d *DerivStreamer) connectAndStream(idx int, batch []types.Market) error {
-	url := fmt.Sprintf("%s?app_id=%s", d.wsURL, d.appID)
+	url := d.wsURL
+	if d.appID != "" { // legacy API only; new public endpoint needs no app_id
+		url = fmt.Sprintf("%s?app_id=%s", d.wsURL, d.appID)
+	}
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		return fmt.Errorf("dial failed: %w", err)
