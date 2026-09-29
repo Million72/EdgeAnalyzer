@@ -42,7 +42,10 @@ type candlesResponse struct {
 
 // FetchCandles connects, requests candle history, and returns parsed candles.
 func (d *DerivClient) FetchCandles(symbol string, granularity, count int) ([]types.Candle, error) {
-	url := fmt.Sprintf("%s?app_id=%s", d.WSURL, d.AppID)
+	url := d.WSURL
+	if d.AppID != "" { // legacy API only; new public endpoint needs no app_id
+		url = fmt.Sprintf("%s?app_id=%s", d.WSURL, d.AppID)
+	}
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("dial error: %w", err)
