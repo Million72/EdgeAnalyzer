@@ -54,7 +54,7 @@ func ValidateSignal(result strategy.EngineResult) ValidationResult {
 		want = "BULL"
 	}
 	htf1OK := result.HTF1Bias == want
-	htf2OK := result.HTF2Bias == "NEUTRAL" || result.HTF2Bias == want
+	htf2OK := result.HTF2Bias == want
 
 	if !htf1OK || !htf2OK {
 		return ValidationResult{Valid: false, Side: side, Reason: "MTF disagreement"}
