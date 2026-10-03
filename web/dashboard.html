@@ -120,7 +120,7 @@
 
   .opp-price { font-family: monospace; font-size: 1.1em; color: #475569; margin-bottom: 10px; }
 
-  .opp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .opp-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 14px; }
   .opp-stat { text-align: center; padding: 8px; background: rgba(255,255,255,0.8); border-radius: 8px; }
   .opp-stat .lbl { font-size: 0.75em; color: #64748b; font-weight: 700; }
   .opp-stat .val { font-size: 1.15em; font-weight: 800; color: #1e293b; }
@@ -300,6 +300,7 @@ function renderOpportunities() {
           <div class="opp-stat"><div class="lbl">Confidence</div><div class="val">${s.confidence}%</div></div>
           <div class="opp-stat"><div class="lbl">R:R</div><div class="val">${s.rr ?? '—'}</div></div>
           <div class="opp-stat"><div class="lbl">TP1</div><div class="val">${s.tp1 ?? '—'}</div></div>
+          <div class="opp-stat"><div class="lbl">TP2</div><div class="val">${s.tp2 ?? '—'}</div></div>
           <div class="opp-stat"><div class="lbl">SL</div><div class="val">${s.sl ?? '—'}</div></div>
         </div>
         <div class="conf-bar-bg"><div class="conf-bar-fill ${fillClass}" style="width:${s.confidence}%"></div></div>
