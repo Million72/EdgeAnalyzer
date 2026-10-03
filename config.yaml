@@ -19,7 +19,7 @@ markets:
     - { symbol: "EURGBP", deriv: "frxEURGBP", is_jpy: false, is_gold: false}
   synthetic:
     
-    - { symbol: "Volatility 10",  deriv: "R_10
+    - { symbol: "Volatility 10",  deriv: "R_10" }
     - { symbol: "Volatility 25",  deriv: "R_25" }
     - { symbol: "Volatility 50",  deriv: "R_50" }
     - { symbol: "Volatility 75",  deriv: "R_75" }
