@@ -14,14 +14,52 @@ import (
 )
 
 type Scanner struct {
-	cfg    *Config
-	deriv  *collector.DerivClient
-	store  *storage.Store
-	cache  *collector.CandleCache
+	cfg     *Config
+	deriv   *collector.DerivClient
+	store   *storage.Store
+	cache   *collector.CandleCache
+	pending   map[string]string // "symbol|tf" -> direction awaiting a second confirming scan
+	pendingMu sync.Mutex
 }
 
 func NewScanner(cfg *Config, deriv *collector.DerivClient, store *storage.Store) *Scanner {
-	return &Scanner{cfg: cfg, deriv: deriv, store: store, cache: collector.NewCandleCache()}
+	return &Scanner{cfg: cfg, deriv: deriv, store: store, cache: collector.NewCandleCache(), pending: make(map[string]string)}
+}
+
+// checkReversalHysteresis prevents a signal from flipping straight from BUY to
+// SELL (or vice versa) on a single scan. A direct reversal is downgraded to
+// WAIT the first time it's seen; only if the same new direction is still
+// true on the *next* scan is it allowed through. This stops signals that
+// were computed off a now-stale candle close from immediately contradicting
+// themselves the moment fresher data comes in.
+func (s *Scanner) checkReversalHysteresis(sig *types.Signal) {
+	key := sig.Symbol + "|" + sig.Timeframe
+	s.pendingMu.Lock()
+	defer s.pendingMu.Unlock()
+
+	if sig.Signal != "BUY" && sig.Signal != "SELL" {
+		delete(s.pending, key) // not actionable anyway — clear any stale pending flip
+		return
+	}
+
+	prev, hadPrev := s.store.GetSignal(sig.Symbol, sig.Timeframe)
+	isDirectFlip := hadPrev && (prev.Signal == "BUY" || prev.Signal == "SELL") && prev.Signal != sig.Signal
+	if !isDirectFlip {
+		delete(s.pending, key)
+		return
+	}
+
+	if s.pending[key] == sig.Signal {
+		// Same reversal direction confirmed on a second consecutive scan — allow it.
+		delete(s.pending, key)
+		return
+	}
+
+	// First time seeing this reversal — hold it back and wait for confirmation.
+	s.pending[key] = sig.Signal
+	original := sig.Signal
+	sig.Signal = "WAIT"
+	sig.BlockReason = original + " reversal pending confirmation — must hold for 2 consecutive scans before flipping"
 }
 
 // Run performs one full scan across all markets and timeframes on a schedule.
@@ -140,5 +178,6 @@ func (s *Scanner) scanMarket(market types.Market, tfName string, tfCfg types.Tim
 	}
 
 	sig := predictor.BuildSignal(market, tfName, candles, htf1, htf2, partnerCandles)
+	s.checkReversalHysteresis(&sig)
 	s.store.SetSignal(sig)
 }
