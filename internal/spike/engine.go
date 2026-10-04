@@ -159,7 +159,7 @@ func RunSpikeEngine(market types.Market, candles []types.Candle) types.Signal {
 		sig.TP1 = &tp1
 		sig.TP2 = &tp2
 		sig.SL = &sl
-		rr := predictor.RiskReward(sig.Price, tp1, sl)
+		rr := round(predictor.RiskReward(sig.Price, tp1, sl), 2)
 		sig.RR = &rr
 		sig.ATR = atr
 	}
