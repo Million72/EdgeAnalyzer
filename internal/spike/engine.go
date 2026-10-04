@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"otc-predictor/internal/indicators"
+	"otc-predictor/internal/predictor"
 	"otc-predictor/pkg/types"
 )
 
@@ -128,6 +130,29 @@ func RunSpikeEngine(market types.Market, candles []types.Candle) types.Signal {
 		confidence = 75 // hard cap — this strategy type should never claim sniper-level certainty
 	}
 	sig.Confidence = confidence
+
+	// TP1/TP2/SL were previously never set here, which left them nil — and
+	// nil silently became 0.0 in storage.Store.SetSignal's outcome tracking.
+	// That made every Boom/Crash signal register as an immediate, fake
+	// "TP1_HIT" win the moment the tracker next checked a real (always >0)
+	// price against a TP1 of 0. Computing real ATR-based levels here, same
+	// as the main engine does, fixes both the blank dashboard cells and the
+	// corrupted track-record data.
+	atr := indicators.ATR(candles, 14)
+	if atr != nil {
+		side := "bull"
+		if sig.Signal == "SELL" {
+			side = "bear"
+		}
+		levels := predictor.CalculateTPSL(side, sig.Price, *atr, true, false, false)
+		tp1, tp2, sl := levels.TP1, levels.TP2, levels.SL
+		sig.TP1 = &tp1
+		sig.TP2 = &tp2
+		sig.SL = &sl
+		rr := predictor.RiskReward(sig.Price, tp1, sl)
+		sig.RR = &rr
+		sig.ATR = atr
+	}
 
 	return sig
 }
