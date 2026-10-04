@@ -37,7 +37,7 @@ func main() {
 	tickStreamer.Start()
 
 	// Start background scanner (full candle-based analysis)
-	scanner := api.NewScanner(cfg, deriv, store)
+	scanner := api.NewScanner(cfg, deriv, store, liveStore)
 	go scanner.Run()
 
 	// Start outcome tracker (checks every 2 minutes) — uses live stream price when fresh
