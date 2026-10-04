@@ -30,7 +30,14 @@ type EngineResult struct {
 	EntryModels   []EntryModelMatch
 }
 
-const MaxScore = 38.0 // 34 (ADX/volatility headroom) + 4 more for entry-model weight headroom (models score 2-4 pts each)
+// MaxScore was 38 (34 base + 4 entry-model headroom). Entry models are a
+// MANDATORY gate in validator.go (a signal cannot fire without one matching),
+// so also adding their weight to the score double-counted the same fact:
+// confidence was being padded by something every passing signal already had
+// to have, rather than reflecting genuinely independent confirming evidence.
+// Reverted to the 34-point base so confidence % reflects only the general
+// confluence factors, not the mandatory gate itself.
+const MaxScore = 34.0
 
 func biasFromCandles(candles []types.Candle) string {
 	if len(candles) < 50 {
@@ -236,12 +243,11 @@ func RunEngine(market types.Market, candles, htf1, htf2, partnerCandles []types.
 		add("Sweep+BOS Confluence", "Liquidity sweep confirmed by BOS in same direction", sweep.Side, 2)
 	}
 
-	// Entry Models — weight scaled per model's own rigor (2-4 based on
-	// component count), matching the same scoring approach used in MT5
-	// Signal Pro 2's JS engines for consistency between the two systems.
-	for _, m := range entryModelMatches {
-		add("Entry Model", m.Label, m.Side, m.Weight)
-	}
+	// Entry Models are NOT scored here — they are a mandatory pass/fail gate
+	// (validator.go requires at least one match on the winning side, full
+	// stop). Scoring them on top of that gate double-counted the same fact.
+	// The matches themselves are still returned below (EntryModels field) so
+	// the gate and the dashboard's "entry model" display both still work.
 
 	// Candlestick patterns
 	for _, p := range pa {
