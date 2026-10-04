@@ -9,21 +9,81 @@ import (
 	"otc-predictor/internal/predictor"
 	"otc-predictor/internal/spike"
 	"otc-predictor/internal/storage"
+	"otc-predictor/internal/streamer"
 	"otc-predictor/internal/strategy"
 	"otc-predictor/pkg/types"
 )
 
 type Scanner struct {
-	cfg     *Config
-	deriv   *collector.DerivClient
-	store   *storage.Store
-	cache   *collector.CandleCache
+	cfg       *Config
+	deriv     *collector.DerivClient
+	store     *storage.Store
+	cache     *collector.CandleCache
+	liveStore *streamer.LiveTickStore
 	pending   map[string]string // "symbol|tf" -> direction awaiting a second confirming scan
 	pendingMu sync.Mutex
 }
 
-func NewScanner(cfg *Config, deriv *collector.DerivClient, store *storage.Store) *Scanner {
-	return &Scanner{cfg: cfg, deriv: deriv, store: store, cache: collector.NewCandleCache(), pending: make(map[string]string)}
+func NewScanner(cfg *Config, deriv *collector.DerivClient, store *storage.Store, liveStore *streamer.LiveTickStore) *Scanner {
+	return &Scanner{cfg: cfg, deriv: deriv, store: store, cache: collector.NewCandleCache(), liveStore: liveStore, pending: make(map[string]string)}
+}
+
+// checkLivePriceDrift compares a just-computed signal (priced off the last
+// CLOSED candle) against the actual current live tick price. The candle
+// close can be up to one scan interval old, so price may have already moved
+// since the numbers on this signal were calculated. Two outcomes:
+//   - Price already reached TP1 or SL since the candle closed: the signal is
+//     stale and no longer a valid entry — downgrade to WAIT and say why,
+//     rather than showing a "BUY" that would already be a loser or whose
+//     profit has already been taken.
+//   - Price moved, but not past either level: signal stays valid, but a
+//     drift note is attached so it's visible instead of hidden.
+func (s *Scanner) checkLivePriceDrift(sig *types.Signal) {
+	if sig.Signal != "BUY" && sig.Signal != "SELL" {
+		return
+	}
+	if sig.TP1 == nil || sig.SL == nil {
+		return
+	}
+	live, ok := s.liveStore.Get(sig.Symbol, 2*time.Minute)
+	if !ok {
+		return // no fresh live price to check against — leave the signal as-is
+	}
+
+	tp1, sl := *sig.TP1, *sig.SL
+	drift := live - sig.Price
+	driftPct := 0.0
+	if sig.Price != 0 {
+		driftPct = (drift / sig.Price) * 100
+	}
+
+	if sig.Signal == "BUY" {
+		if live >= tp1 {
+			sig.Signal = "WAIT"
+			sig.BlockReason = "Stale — price already reached TP1 since this candle closed"
+			return
+		}
+		if live <= sl {
+			sig.Signal = "WAIT"
+			sig.BlockReason = "Stale — price already hit SL since this candle closed"
+			return
+		}
+	} else { // SELL
+		if live <= tp1 {
+			sig.Signal = "WAIT"
+			sig.BlockReason = "Stale — price already reached TP1 since this candle closed"
+			return
+		}
+		if live >= sl {
+			sig.Signal = "WAIT"
+			sig.BlockReason = "Stale — price already hit SL since this candle closed"
+			return
+		}
+	}
+
+	if driftPct > 0.05 || driftPct < -0.05 {
+		sig.PriceDrift = &driftPct
+	}
 }
 
 // checkReversalHysteresis prevents a signal from flipping straight from BUY to
@@ -141,6 +201,8 @@ func (s *Scanner) scanMarket(market types.Market, tfName string, tfCfg types.Tim
 	if isBoomCrash(market.Symbol) {
 		sig := spike.RunSpikeEngine(market, candles)
 		sig.Timeframe = tfName
+		s.checkReversalHysteresis(&sig)
+		s.checkLivePriceDrift(&sig)
 		s.store.SetSignal(sig)
 		return
 	}
@@ -179,5 +241,6 @@ func (s *Scanner) scanMarket(market types.Market, tfName string, tfCfg types.Tim
 
 	sig := predictor.BuildSignal(market, tfName, candles, htf1, htf2, partnerCandles)
 	s.checkReversalHysteresis(&sig)
+	s.checkLivePriceDrift(&sig)
 	s.store.SetSignal(sig)
 }
