@@ -93,7 +93,7 @@
   .best-meta { font-size: 0.9em; color: #64748b; }
 
   .opps-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px;
   }
 
   .opp-card {
@@ -148,7 +148,7 @@
   .market-panel-title { font-size: 1.4em; font-weight: 800; color: #3b82f6; margin-bottom: 18px; }
 
   .market-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 14px;
   }
 
   .m-cell {
@@ -179,13 +179,49 @@
   }
   .perf-title { font-size: 1.3em; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
   .perf-sub { font-size: 0.82em; color: #64748b; margin-bottom: 16px; }
-  .perf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .perf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 12px; }
   .perf-card { background: #f8fafc; border-radius: 12px; padding: 14px; }
   .perf-card .sym { font-weight: 800; color: #1e293b; margin-bottom: 8px; }
   .perf-card .wr { font-size: 1.6em; font-weight: 800; }
   .perf-card .wr.good { color: #10b981; } .perf-card .wr.bad { color: #ef4444; } .perf-card .wr.unknown { color: #94a3b8; }
   .perf-card .breakdown { font-size: 0.8em; color: #64748b; margin-top: 4px; }
   .perf-empty { text-align: center; padding: 24px; color: #94a3b8; font-size: 0.95em; }
+
+  .view-analysis {
+    display: block; text-align: center; margin-top: 10px; padding: 8px;
+    font-size: 0.85em; font-weight: 700; color: #4338ca; cursor: pointer;
+    background: rgba(255,255,255,0.6); border-radius: 8px;
+  }
+  .analysis-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.6);
+    z-index: 100; padding: 16px; overflow-y: auto;
+  }
+  .analysis-overlay.open { display: block; }
+  .analysis-modal {
+    background: white; border-radius: 16px; padding: 20px; max-width: 480px;
+    margin: 30px auto; position: relative;
+  }
+  .analysis-close {
+    position: absolute; top: 14px; right: 16px; font-size: 1.4em; color: #94a3b8;
+    cursor: pointer; line-height: 1;
+  }
+  .analysis-h { font-size: 1.2em; font-weight: 800; color: #1e293b; margin-bottom: 2px; }
+  .analysis-sub { font-size: 0.8em; color: #64748b; margin-bottom: 16px; }
+  .chain-step {
+    display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;
+    padding: 9px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.88em;
+  }
+  .chain-step:last-child { border-bottom: none; }
+  .chain-label { color: #334155; }
+  .chain-step-tag { font-size: 0.72em; color: #94a3b8; display: block; }
+  .chain-side { font-weight: 800; white-space: nowrap; }
+  .chain-side.bull { color: #10b981; } .chain-side.bear { color: #ef4444; } .chain-side.neutral { color: #94a3b8; }
+  .chain-section-title {
+    font-size: 0.78em; font-weight: 800; color: #6366f1; text-transform: uppercase;
+    letter-spacing: 0.04em; margin: 18px 0 4px;
+  }
+  .chain-verdict { background: #f8fafc; border-radius: 10px; padding: 12px; margin-top: 16px; font-size: 0.88em; }
+  .chain-block { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px; margin-top: 10px; font-size: 0.85em; color: #9a3412; }
 </style>
 </head>
 <body>
@@ -195,6 +231,10 @@
 
   <div class="tf-selector">
     <div class="tf-buttons" id="tfButtons"></div>
+  </div>
+
+  <div class="analysis-overlay" id="analysisOverlay" onclick="if(event.target===this) closeAnalysis()">
+    <div class="analysis-modal" id="analysisModal"></div>
   </div>
 
   <div class="stats-bar" id="statsBar"></div>
@@ -326,6 +366,8 @@ function renderOpportunities() {
           <div class="opp-stat"><div class="lbl">SL</div><div class="val">${s.sl ?? '—'}</div></div>
         </div>
         <div class="conf-bar-bg"><div class="conf-bar-fill ${fillClass}" style="width:${s.confidence}%"></div></div>
+        ${s.priceDrift ? `<div class="m-sub" style="color:#b45309; margin-top:8px;">⚠ Live price has drifted ${s.priceDrift > 0 ? '+' : ''}${s.priceDrift.toFixed(2)}% since this was calculated</div>` : ''}
+        <div class="view-analysis" onclick="openAnalysis('${s.symbol}','${s.timeframe}')">🔍 View Analysis Chain</div>
       </div>
     `;
   }).join('')}</div>`;
@@ -366,8 +408,70 @@ function renderMarketGrid() {
         <div class="m-price">${s.price}</div>
         <div class="m-sub">${s.confidence}% conf · RSI ${s.rsi} · ${s.trend}</div>
         ${s.blockReason ? `<div class="m-sub" style="color:#94a3b8;">${s.blockReason}</div>` : ''}
+        <div class="view-analysis" onclick="openAnalysis('${s.symbol}','${s.timeframe}')">🔍 View Analysis Chain</div>
       </div>`;
   }).join('');
+}
+
+function sideLabel(side) {
+  const s = (side || '').toLowerCase();
+  if (s === 'bull') return '<span class="chain-side bull">BULL</span>';
+  if (s === 'bear') return '<span class="chain-side bear">BEAR</span>';
+  return '<span class="chain-side neutral">neutral</span>';
+}
+
+async function openAnalysis(symbol, tf) {
+  const overlay = document.getElementById('analysisOverlay');
+  const modal = document.getElementById('analysisModal');
+  modal.innerHTML = `<div class="analysis-close" onclick="closeAnalysis()">&times;</div><div class="loading" style="padding:30px;">Loading chain…</div>`;
+  overlay.classList.add('open');
+
+  try {
+    const res = await fetch(`/api/signal?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`);
+    if (!res.ok) throw new Error('not found');
+    const s = await res.json();
+
+    const factorsHtml = (s.factors || []).map(f => `
+      <div class="chain-step">
+        <div class="chain-label">${f.label}<span class="chain-step-tag">${f.step}</span></div>
+        ${sideLabel(f.side)}
+      </div>`).join('') || '<div class="chain-step chain-label">No scored factors recorded</div>';
+
+    const modelsHtml = (s.entryModels || []).length
+      ? s.entryModels.map(m => `
+        <div class="chain-step">
+          <div class="chain-label">Model ${m.model}: ${m.label}</div>
+          ${sideLabel(m.side)}
+        </div>`).join('')
+      : '<div class="chain-step chain-label" style="color:#94a3b8;">No entry model matched on either side</div>';
+
+    modal.innerHTML = `
+      <div class="analysis-close" onclick="closeAnalysis()">&times;</div>
+      <div class="analysis-h">${s.symbol} · ${s.timeframe}</div>
+      <div class="analysis-sub">Full decision chain for this scan — exactly what the engine actually checked, in order.</div>
+
+      <div class="chain-section-title">1 · Higher-timeframe bias</div>
+      <div class="chain-step"><div class="chain-label">HTF2 (highest) — must match to allow entry models</div>${sideLabel(s.htf2Bias?.toLowerCase())}</div>
+      <div class="chain-step"><div class="chain-label">HTF1 (middle) — must actively confirm</div>${sideLabel(s.htf1Bias?.toLowerCase())}</div>
+
+      <div class="chain-section-title">2 · Scored confluence factors (${s.bullScore} bull / ${s.bearScore} bear, max ${s.maxScore})</div>
+      ${factorsHtml}
+
+      <div class="chain-section-title">3 · Entry models (mandatory gate)</div>
+      ${modelsHtml}
+
+      <div class="chain-verdict">
+        <b>Result: ${s.signal}</b> · ${s.confidence}% confidence · RSI ${s.rsi} · Structure: ${s.structure || '—'}
+      </div>
+      ${s.blockReason ? `<div class="chain-block"><b>Blocked:</b> ${s.blockReason}</div>` : ''}
+    `;
+  } catch (e) {
+    modal.innerHTML = `<div class="analysis-close" onclick="closeAnalysis()">&times;</div><div class="loading" style="padding:30px; color:#ef4444;">Couldn't load this signal's chain.</div>`;
+  }
+}
+
+function closeAnalysis() {
+  document.getElementById('analysisOverlay').classList.remove('open');
 }
 
 async function loadPerformance() {
