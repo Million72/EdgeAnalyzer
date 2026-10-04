@@ -144,8 +144,18 @@ func RunSpikeEngine(market types.Market, candles []types.Candle) types.Signal {
 		if sig.Signal == "SELL" {
 			side = "bear"
 		}
+		// Boom/Crash prices run into the tens of thousands — 2dp matches the
+		// same rule the main engine uses for synthetics priced above 999.
+		dec := 3
+		if sig.Price > 999 {
+			dec = 2
+		}
+		sig.Price = round(sig.Price, dec)
+
 		levels := predictor.CalculateTPSL(side, sig.Price, *atr, true, false, false)
-		tp1, tp2, sl := levels.TP1, levels.TP2, levels.SL
+		tp1 := round(levels.TP1, dec)
+		tp2 := round(levels.TP2, dec)
+		sl := round(levels.SL, dec)
 		sig.TP1 = &tp1
 		sig.TP2 = &tp2
 		sig.SL = &sl
@@ -155,4 +165,15 @@ func RunSpikeEngine(market types.Market, candles []types.Candle) types.Signal {
 	}
 
 	return sig
+}
+
+func round(v float64, dp int) float64 {
+	mult := 1.0
+	for i := 0; i < dp; i++ {
+		mult *= 10
+	}
+	if v < 0 {
+		return float64(int(v*mult-0.5)) / mult
+	}
+	return float64(int(v*mult+0.5)) / mult
 }
