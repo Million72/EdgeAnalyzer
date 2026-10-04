@@ -69,6 +69,7 @@ type Signal struct {
 	Structure   string    `json:"structure"`
 	CounterTrend bool     `json:"counterTrend"`
 	BlockReason string    `json:"blockReason,omitempty"`
+	PriceDrift  *float64  `json:"priceDrift,omitempty"` // % live price has moved since this signal's candle close, if notable
 	Factors     []Factor  `json:"factors"`
 	EntryModels []EntryModel `json:"entryModels,omitempty"`
 	Timestamp   time.Time `json:"timestamp"`
