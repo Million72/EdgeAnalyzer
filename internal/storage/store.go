@@ -36,25 +36,24 @@ func (s *Store) SetSignal(sig types.Signal) {
 		if len(s.history) > s.maxHistory {
 			s.history = s.history[len(s.history)-s.maxHistory:]
 		}
-		// Create a tracked outcome
-		id := sig.Symbol + "-" + sig.Timeframe + "-" + sig.Timestamp.Format(time.RFC3339)
-		tp1 := 0.0
-		sl := 0.0
-		if sig.TP1 != nil {
-			tp1 = *sig.TP1
-		}
-		if sig.SL != nil {
-			sl = *sig.SL
-		}
-		s.outcomes[id] = &types.SignalOutcome{
-			SignalID:   id,
-			Symbol:     sig.Symbol,
-			Signal:     sig.Signal,
-			EntryPrice: sig.Price,
-			TP1:        tp1,
-			SL:         sl,
-			Outcome:    "PENDING",
-			CreatedAt:  sig.Timestamp,
+		// Only create a trackable outcome if real TP1/SL levels exist.
+		// Previously missing TP1/SL silently defaulted to 0.0, and since any
+		// live price is >= 0, every such BUY got marked a fake instant win
+		// the moment the tracker next ran. Signals without real levels can't
+		// be meaningfully tracked, so they're deliberately left PENDING-free
+		// rather than fabricating a result.
+		if sig.TP1 != nil && sig.SL != nil {
+			id := sig.Symbol + "-" + sig.Timeframe + "-" + sig.Timestamp.Format(time.RFC3339)
+			s.outcomes[id] = &types.SignalOutcome{
+				SignalID:   id,
+				Symbol:     sig.Symbol,
+				Signal:     sig.Signal,
+				EntryPrice: sig.Price,
+				TP1:        *sig.TP1,
+				SL:         *sig.SL,
+				Outcome:    "PENDING",
+				CreatedAt:  sig.Timestamp,
+			}
 		}
 	}
 }
