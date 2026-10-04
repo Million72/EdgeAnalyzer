@@ -170,6 +170,21 @@
   }
 
   .loading { text-align: center; color: white; padding: 40px; font-size: 1.2em; }
+
+  /* Performance panel — real tracked outcomes, not a promise */
+  .perf-panel {
+    background: white; padding: 22px; border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 26px;
+  }
+  .perf-title { font-size: 1.3em; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
+  .perf-sub { font-size: 0.82em; color: #64748b; margin-bottom: 16px; }
+  .perf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .perf-card { background: #f8fafc; border-radius: 12px; padding: 14px; }
+  .perf-card .sym { font-weight: 800; color: #1e293b; margin-bottom: 8px; }
+  .perf-card .wr { font-size: 1.6em; font-weight: 800; }
+  .perf-card .wr.good { color: #10b981; } .perf-card .wr.bad { color: #ef4444; } .perf-card .wr.unknown { color: #94a3b8; }
+  .perf-card .breakdown { font-size: 0.8em; color: #64748b; margin-top: 4px; }
+  .perf-empty { text-align: center; padding: 24px; color: #94a3b8; font-size: 0.95em; }
 </style>
 </head>
 <body>
@@ -182,6 +197,12 @@
   </div>
 
   <div class="stats-bar" id="statsBar"></div>
+
+  <div class="perf-panel">
+    <div class="perf-title">📊 Real Track Record</div>
+    <div class="perf-sub">Actual wins/losses vs. TP/SL — not the confidence % shown on signals. Builds up as past signals resolve.</div>
+    <div id="perfContainer"><div class="loading" style="color:#94a3b8; padding:16px;">Loading…</div></div>
+  </div>
 
   <div class="best-panel">
     <div class="best-header">
@@ -348,9 +369,56 @@ function renderMarketGrid() {
   }).join('');
 }
 
+async function loadPerformance() {
+  const container = document.getElementById('perfContainer');
+  try {
+    const res = await fetch('/api/performance');
+    const data = await res.json();
+    const stats = (data.stats || []).filter(s => s.totalSignals > 0);
+
+    if (stats.length === 0) {
+      container.innerHTML = `<div class="perf-empty">No signals have resolved yet — this fills in as BUY/SELL signals actually hit their TP or SL.</div>`;
+      return;
+    }
+
+    // Overall totals across all symbols first
+    const totalWins = stats.reduce((a, s) => a + s.wins, 0);
+    const totalLosses = stats.reduce((a, s) => a + s.losses, 0);
+    const totalPending = stats.reduce((a, s) => a + s.pending, 0);
+    const closed = totalWins + totalLosses;
+    const overallWR = closed > 0 ? (totalWins / closed * 100).toFixed(0) : null;
+
+    const sorted = [...stats].sort((a, b) => (b.wins + b.losses) - (a.wins + a.losses));
+
+    container.innerHTML = `
+      <div class="perf-grid">
+        <div class="perf-card" style="background:#eef2ff;">
+          <div class="sym">ALL MARKETS</div>
+          <div class="wr ${overallWR === null ? 'unknown' : overallWR >= 50 ? 'good' : 'bad'}">${overallWR === null ? '—' : overallWR + '%'}</div>
+          <div class="breakdown">${totalWins}W / ${totalLosses}L · ${totalPending} pending</div>
+        </div>
+        ${sorted.map(s => {
+          const c = s.wins + s.losses;
+          const wr = c > 0 ? s.winRate.toFixed(0) : null;
+          return `
+            <div class="perf-card">
+              <div class="sym">${s.symbol}</div>
+              <div class="wr ${wr === null ? 'unknown' : wr >= 50 ? 'good' : 'bad'}">${wr === null ? '—' : wr + '%'}</div>
+              <div class="breakdown">${s.wins}W / ${s.losses}L · ${s.pending} pending</div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  } catch (e) {
+    console.error('Failed to load performance', e);
+    container.innerHTML = `<div class="perf-empty">Couldn't load performance data.</div>`;
+  }
+}
+
 renderTfButtons();
 loadSignals();
+loadPerformance();
 setInterval(loadSignals, 20000);
+setInterval(loadPerformance, 60000);
 </script>
 </body>
 </html>
