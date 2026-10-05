@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"otc-predictor/internal/indicators"
-	"otc-predictor/internal/predictor"
 	"otc-predictor/pkg/types"
 )
 
@@ -110,70 +108,36 @@ func RunSpikeEngine(market types.Market, candles []types.Candle) types.Signal {
 		return sig
 	}
 
+	// --- Actionable BUY/SELL is INTENTIONALLY DISABLED for Boom/Crash. ---
+	//
+	// This used to fire BUY/SELL here based on "post-spike reaction" —
+	// betting that a retrace after a detected spike would continue. A real
+	// trade taken off this logic (Crash 300, see conversation history) lost
+	// money: the spike detector operates on candle-close outliers, but a
+	// Boom/Crash guaranteed spike is a single-TICK event. On a timeframe
+	// like M15, one spike tick gets diluted into a normal-looking candle,
+	// while an ordinary multi-candle decline can look identical to "spike
+	// then retrace" to this detector — they are not reliably distinguishable
+	// at candle resolution. That mismatch isn't a small bug to patch; it's a
+	// structural limitation of detecting a tick-level phenomenon from
+	// candle-level data, and patching it further here would just be a new
+	// unverified guess layered on a symbol that already cost real money.
+	//
+	// So: no BUY/SELL, no TP/SL, from this engine, until genuine tick-level
+	// backtesting exists to validate (or replace) the reaction theory. The
+	// survival-model math above (P(spike within 10 candles), overdue
+	// context) IS statistically sound and stays visible — it's honest
+	// probabilistic context, not a disguised trade call.
+	side := "the reaction side"
 	if reaction.RetraceDirection == SpikeUp {
-		sig.Signal = "BUY"
+		side = "bullish"
 	} else {
-		sig.Signal = "SELL"
+		side = "bearish"
 	}
-
-	// Confidence here is deliberately conservative and tied to sample reliability —
-	// we do NOT inflate confidence just because the retrace looks clean, since
-	// the underlying spike timing itself remains fundamentally unpredictable.
-	confidence := 55 // base — post-spike reaction has real but limited edge
-	if model.Reliable {
-		confidence += 10 // more historical spikes to have characterized typical reaction behavior from
-	}
-	if reaction.RetraceSoFar >= 0.4 && reaction.RetraceSoFar <= 0.65 {
-		confidence += 5 // sweet spot — reaction clearly underway but not exhausted
-	}
-	if confidence > 75 {
-		confidence = 75 // hard cap — this strategy type should never claim sniper-level certainty
-	}
-	sig.Confidence = confidence
-
-	// TP1/TP2/SL were previously never set here, which left them nil — and
-	// nil silently became 0.0 in storage.Store.SetSignal's outcome tracking.
-	// That made every Boom/Crash signal register as an immediate, fake
-	// "TP1_HIT" win the moment the tracker next checked a real (always >0)
-	// price against a TP1 of 0. Computing real ATR-based levels here, same
-	// as the main engine does, fixes both the blank dashboard cells and the
-	// corrupted track-record data.
-	atr := indicators.ATR(candles, 14)
-	if atr != nil {
-		side := "bull"
-		if sig.Signal == "SELL" {
-			side = "bear"
-		}
-		// Boom/Crash prices run into the tens of thousands — 2dp matches the
-		// same rule the main engine uses for synthetics priced above 999.
-		dec := 3
-		if sig.Price > 999 {
-			dec = 2
-		}
-		sig.Price = round(sig.Price, dec)
-
-		levels := predictor.CalculateTPSL(side, sig.Price, *atr, true, false, false)
-		tp1 := round(levels.TP1, dec)
-		tp2 := round(levels.TP2, dec)
-		sl := round(levels.SL, dec)
-		sig.TP1 = &tp1
-		sig.TP2 = &tp2
-		sig.SL = &sl
-		rr := round(predictor.RiskReward(sig.Price, tp1, sl), 2)
-		sig.RR = &rr
-		sig.ATR = atr
-	}
-
+	sig.Signal = "WAIT"
+	sig.BlockReason = fmt.Sprintf(
+		"Boom/Crash actionable signals are disabled — post-spike reaction detection isn't validated at candle resolution. (For reference: retrace %.0f%% so far, leaning %s.)",
+		reaction.RetraceSoFar*100, side,
+	)
 	return sig
-}
-
-func round(v float64, dp int) float64 {
-	mult := 1.0
-	for i := 0; i < dp; i++ {
-		mult *= 10
-	}
-	if v < 0 {
-		return float64(int(v*mult-0.5)) / mult
-	}
-	return float64(int(v*mult+0.5)) / mult
 }
