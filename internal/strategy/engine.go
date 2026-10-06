@@ -30,14 +30,11 @@ type EngineResult struct {
 	EntryModels   []EntryModelMatch
 }
 
-// MaxScore was 38 (34 base + 4 entry-model headroom). Entry models are a
-// MANDATORY gate in validator.go (a signal cannot fire without one matching),
-// so also adding their weight to the score double-counted the same fact:
-// confidence was being padded by something every passing signal already had
-// to have, rather than reflecting genuinely independent confirming evidence.
-// Reverted to the 34-point base so confidence % reflects only the general
-// confluence factors, not the mandatory gate itself.
-const MaxScore = 34.0
+// MaxScore: 34 base (after removing the entry-model double-count — see git
+// history) + 4 for Retest (2) and Pullback (2) + 1 more because Chart
+// Pattern can now score up to 4 (Triple Top/Bottom, Head & Shoulders) where
+// it previously maxed at 3 (Double Top/Bottom only).
+const MaxScore = 39.0
 
 func biasFromCandles(candles []types.Candle) string {
 	if len(candles) < 50 {
@@ -241,6 +238,16 @@ func RunEngine(market types.Market, candles, htf1, htf2, partnerCandles []types.
 	// than either alone, so it earns an extra point on top of their individual scores.
 	if sweep != nil && bos != nil && sweep.Side == bos.Side {
 		add("Sweep+BOS Confluence", "Liquidity sweep confirmed by BOS in same direction", sweep.Side, 2)
+	}
+
+	// Retest — did price come back to confirm a broken level held?
+	if retest := DetectRetest(candles, structure); retest != nil {
+		add("Retest", "Retest of broken level held", retest.Side, 2)
+	}
+
+	// Pullback — classic trend-continuation: pulled back to EMA21, resuming.
+	if pullback := DetectPullback(candles); pullback != nil {
+		add("Pullback", "Pullback to EMA21, trend resuming", pullback.Side, 2)
 	}
 
 	// Entry Models are NOT scored here — they are a mandatory pass/fail gate
