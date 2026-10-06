@@ -116,7 +116,7 @@ func CheckEntryModels(candles []types.Candle, sweep *SweepResult, mss *SweepResu
 		mitigationOk := len(mitigationZones) > 0 && isRecent(mostRecentIndex(mitigationZones))
 
 		turtleOk := turtleSoup != nil && turtleSoup.Side == side
-		doubleOk := doubleSweep != nil && doubleSweep.Side == side
+		doubleOk := doubleSweep != nil && doubleSweep.Side == side && isRecent(doubleSweep.Index)
 		cisdOk := cisd != nil && cisd.Side == side
 
 		bprOk := false
