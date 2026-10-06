@@ -101,6 +101,7 @@ func DetectTurtleSoup(candles []types.Candle, periods int) *TurtleSoupResult {
 type DoubleSweepResult struct {
 	Side  string
 	Label string
+	Index int // index of the LATER of the two sweeps — lets callers check recency
 }
 
 // DetectDoubleSweep: two sweeps on the SAME side occurring close together
@@ -115,7 +116,7 @@ func DetectDoubleSweep(candles []types.Candle, maxGap int) *DoubleSweepResult {
 
 	gap := last.Index - prev.Index
 	if last.Side == prev.Side && gap <= maxGap && gap >= 2 {
-		return &DoubleSweepResult{Side: last.Side, Label: "Double Liquidity Sweep — two sweeps close together"}
+		return &DoubleSweepResult{Side: last.Side, Label: "Double Liquidity Sweep — two sweeps close together", Index: last.Index}
 	}
 	return nil
 }
