@@ -110,7 +110,7 @@ func BuildSignal(market types.Market, tf string, candles, htf1, htf2, partnerCan
 	}
 
 	isSynthetic := market.Type == "synthetic"
-	levels := CalculateTPSL(side, result.Price, *result.ATR, isSynthetic, market.IsJPY, market.IsGold)
+	levels := CalculateTPSL(side, result.Price, *result.ATR, isSynthetic, market.IsJPY, market.IsGold, tf == "1m")
 	rr := RiskReward(result.Price, levels.TP1, levels.SL)
 
 	tp1 := round(levels.TP1, dec)
