@@ -28,6 +28,8 @@ type EngineResult struct {
 	ADXValue      float64
 	VolatilityOK  bool // true when ATR is healthy relative to recent range — false means dead/illiquid conditions
 	EntryModels   []EntryModelMatch
+	BullExtended  bool // price already moved >2.5x ATR above the last swing low — a BUY here is chasing, not catching the move early
+	BearExtended  bool // price already moved >2.5x ATR below the last swing high — a SELL here is chasing
 }
 
 // MaxScore: 34 base (after removing the entry-model double-count — see git
@@ -320,6 +322,24 @@ func RunEngine(market types.Market, candles, htf1, htf2, partnerCandles []types.
 		factors = append(factors, Factor{Step: "Volatility", Label: "ATR below healthy range — low liquidity, confidence reduced", Side: "neutral", Weight: -penalty})
 	}
 
+	// Extension check — does NOT predict reversal (nothing can). It blocks
+	// CHASING: entering a BUY after price has already run a long way up from
+	// its last swing low (or a SELL after a long run down from the last
+	// swing high) has structurally worse risk/reward than entering near
+	// where the move started, independent of whether the move continues.
+	// 2.5x ATR is a deliberately moderate threshold — tight enough to catch
+	// genuinely late entries, loose enough not to block normal trending moves.
+	bullExtended, bearExtended := false, false
+	if atr != nil && *atr > 0 {
+		const maxExtensionATR = 2.5
+		if structure.LastLow != nil && (price-structure.LastLow.Price)/(*atr) > maxExtensionATR {
+			bullExtended = true
+		}
+		if structure.LastHigh != nil && (structure.LastHigh.Price-price)/(*atr) > maxExtensionATR {
+			bearExtended = true
+		}
+	}
+
 	htf1Bias := biasFromCandles(htf1)
 	if htf1Bias == "BULL" {
 		add("HTF1", "HTF1 bullish", "bull", 2)
@@ -343,6 +363,8 @@ func RunEngine(market types.Market, candles, htf1, htf2, partnerCandles []types.
 		ADXValue:     adx.ADX,
 		VolatilityOK: volOK,
 		EntryModels:  entryModelMatches,
+		BullExtended: bullExtended,
+		BearExtended: bearExtended,
 	}
 }
 
