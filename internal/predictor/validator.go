@@ -18,7 +18,13 @@ const (
 	MinMargin         = 4.0
 	RSIOverbought     = 70.0
 	RSIOversold       = 30.0
-	MinConfidencePct  = 70.0 // hard floor — matches the fix applied to MT5 Signal Pro 2's JS validator
+	// 62%, not 70%. MaxScore grew 34->39 as Retest/Pullback/more chart
+	// patterns were added — all bonus-only factors that aren't present on
+	// most scans. Keeping a 70% floor against the bigger denominator would
+	// have silently raised the real bar (70% of 39 ≈ 27.3 raw points needed,
+	// vs 70% of 34 ≈ 23.8 before). 62% of 39 ≈ 24.2 — the same real
+	// requirement as before, not a new stricter one introduced by accident.
+	MinConfidencePct = 62.0
 )
 
 // ValidateSignal applies score thresholds, RSI extremes, 3-timeframe agreement,
@@ -48,13 +54,25 @@ func ValidateSignal(result strategy.EngineResult) ValidationResult {
 		return ValidationResult{Valid: false, Side: side, Reason: "RSI oversold — SELL blocked"}
 	}
 
+	// Extension / chasing block — don't BUY after price has already run far
+	// above its last swing low, or SELL after it's run far below its last
+	// swing high. This does NOT predict a reversal (nothing can) — it blocks
+	// entries with structurally worse risk/reward because the move already
+	// happened before the signal fired.
+	if side == "bull" && result.BullExtended {
+		return ValidationResult{Valid: false, Side: side, Reason: "Price already extended far above recent swing low — this would be chasing, not an early entry"}
+	}
+	if side == "bear" && result.BearExtended {
+		return ValidationResult{Valid: false, Side: side, Reason: "Price already extended far below recent swing high — this would be chasing, not an early entry"}
+	}
+
 	// 3-Timeframe agreement — HTF1 must confirm, HTF2 must not oppose
 	want := "BEAR"
 	if side == "bull" {
 		want = "BULL"
 	}
 	htf1OK := result.HTF1Bias == want
-	htf2OK := result.HTF2Bias == want
+	htf2OK := result.HTF2Bias == "NEUTRAL" || result.HTF2Bias == want
 
 	if !htf1OK || !htf2OK {
 		return ValidationResult{Valid: false, Side: side, Reason: "MTF disagreement"}
