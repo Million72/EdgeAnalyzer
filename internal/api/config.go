@@ -25,9 +25,10 @@ type Config struct {
 
 	Timeframes map[string]types.TimeframeConfig `yaml:"timeframes"`
 
-	ScanIntervalSeconds int `yaml:"scan_interval_seconds"`
-	CandleCount         int `yaml:"candle_count"`
-	HTFCandleCount      int `yaml:"htf_candle_count"`
+	ScanIntervalSeconds      int `yaml:"scan_interval_seconds"`
+	ScalpScanIntervalSeconds int `yaml:"scalp_scan_interval_seconds"`
+	CandleCount              int `yaml:"candle_count"`
+	HTFCandleCount           int `yaml:"htf_candle_count"`
 
 	SignalRules struct {
 		MinScore      float64 `yaml:"min_score"`
