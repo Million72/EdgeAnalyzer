@@ -123,8 +123,12 @@ func (s *Scanner) checkReversalHysteresis(sig *types.Signal) {
 }
 
 // Run performs one full scan across all markets and timeframes on a schedule.
+const scalpTimeframe = "1m"
+
 func (s *Scanner) Run() {
 	s.scanOnce()
+	go s.runScalpLoop()
+
 	ticker := time.NewTicker(time.Duration(s.cfg.ScanIntervalSeconds) * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -132,11 +136,39 @@ func (s *Scanner) Run() {
 	}
 }
 
+// runScalpLoop refreshes ONLY the 1m timeframe on its own fast ticker,
+// independent of the normal 5-6 timeframe cycle. A scalper can't act on a
+// signal that's up to 5 minutes stale — this exists so the fastest
+// timeframe doesn't wait behind the slower ones.
+func (s *Scanner) runScalpLoop() {
+	tfCfg, ok := s.cfg.Timeframes[scalpTimeframe]
+	if !ok {
+		log.Printf("scanner: scalp loop disabled — no %q entry in config.yaml timeframes", scalpTimeframe)
+		return
+	}
+	interval := s.cfg.ScalpScanIntervalSeconds
+	if interval <= 0 {
+		interval = 30
+	}
+	log.Printf("scanner: scalp loop starting — refreshing %q every %ds", scalpTimeframe, interval)
+
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.scanTimeframe(s.cfg.AllMarkets(), scalpTimeframe, tfCfg)
+	}
+}
+
+// scanOnce runs the normal (non-scalp) timeframes. The 1m timeframe is
+// excluded here — it's handled by runScalpLoop on its own faster cadence.
 func (s *Scanner) scanOnce() {
 	markets := s.cfg.AllMarkets()
 	log.Printf("scanner: starting scan of %d markets across %d timeframes", len(markets), len(s.cfg.Timeframes))
 
 	for tfName, tfCfg := range s.cfg.Timeframes {
+		if tfName == scalpTimeframe {
+			continue // handled by the faster scalp loop instead
+		}
 		s.scanTimeframe(markets, tfName, tfCfg)
 	}
 	log.Println("scanner: scan complete")
