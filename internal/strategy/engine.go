@@ -327,11 +327,17 @@ func RunEngine(market types.Market, candles, htf1, htf2, partnerCandles []types.
 	// its last swing low (or a SELL after a long run down from the last
 	// swing high) has structurally worse risk/reward than entering near
 	// where the move started, independent of whether the move continues.
-	// 2.5x ATR is a deliberately moderate threshold — tight enough to catch
-	// genuinely late entries, loose enough not to block normal trending moves.
+	// 4.0x ATR, not 2.5x. Entry models (MSS, BOS, sweeps) only confirm AFTER
+	// a structural break has already happened — by the time one validly
+	// matches, price has often already moved 2.5-3x ATR from the prior
+	// swing as a NORMAL consequence of how they work, not because the entry
+	// is late. 2.5x was an unvalidated guess that likely blocked a large
+	// share of otherwise-legitimate signals by fighting the entry-model
+	// gate's own nature. 4.0x still catches genuinely stale, far-extended
+	// entries without punishing a normal freshly-confirmed structural break.
 	bullExtended, bearExtended := false, false
 	if atr != nil && *atr > 0 {
-		const maxExtensionATR = 2.5
+		const maxExtensionATR = 4.0
 		if structure.LastLow != nil && (price-structure.LastLow.Price)/(*atr) > maxExtensionATR {
 			bullExtended = true
 		}
