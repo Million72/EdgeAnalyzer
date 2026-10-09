@@ -18,13 +18,12 @@ const (
 	MinMargin         = 4.0
 	RSIOverbought     = 70.0
 	RSIOversold       = 30.0
-	// 62%, not 70%. MaxScore grew 34->39 as Retest/Pullback/more chart
-	// patterns were added — all bonus-only factors that aren't present on
-	// most scans. Keeping a 70% floor against the bigger denominator would
-	// have silently raised the real bar (70% of 39 ≈ 27.3 raw points needed,
-	// vs 70% of 34 ≈ 23.8 before). 62% of 39 ≈ 24.2 — the same real
-	// requirement as before, not a new stricter one introduced by accident.
-	MinConfidencePct = 62.0
+	// 55%. The previous value here (62%) was a math error — I intended it to
+	// match the pre-session real requirement (~23.8 raw points) but 62% of
+	// the new MaxScore=39 is actually ~24.2, very slightly STRICTER than
+	// before, not looser. 55% of 39 ≈ 21.5 raw points — a genuine loosening
+	// below the original baseline, which is what was actually asked for.
+	MinConfidencePct = 55.0
 )
 
 // ValidateSignal applies score thresholds, RSI extremes, 3-timeframe agreement,
